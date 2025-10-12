@@ -1,32 +1,35 @@
 output "cluster_name" {
-  value = module.eks.cluster_name
+  description = "EKS Cluster name"
+  value       = module.eks.cluster_name
 }
 
-output "cluster_arn" {
-  value = module.eks.cluster_arn
+output "cluster_endpoint" {
+  description = "EKS Cluster API endpoint"
+  value       = module.eks.cluster_endpoint
 }
 
-output "kms_key_arn" {
-  value = module.eks.kms_key_arn
+output "cluster_oidc_provider_arn" {
+  description = "OIDC provider ARN for IRSA"
+  value       = module.eks.oidc_provider_arn
 }
 
-output "kms_key_id" {
-  value = module.eks.kms_key_id
+output "cluster_certificate_authority_data" {
+  description = "Cluster CA (base64)"
+  value       = module.eks.cluster_certificate_authority_data
+  sensitive   = true
 }
 
-output "aws_loadbalancer_irsa" {
-  value = module.aws_loadbalancer_irsa.iam_role_arn
+output "node_groups" {
+  description = "Managed Node Groups"
+  value       = module.eks.eks_managed_node_groups
 }
 
-output "external_dns_irsa" {
-  value = module.external_dns_irsa.iam_role_arn
+output "region" {
+  description = "AWS region"
+  value       = var.region
 }
 
-output "cluster_primary_security_group_id" {
-  value = module.eks.cluster_primary_security_group_id
+output "vpc_id" {
+  description = "VPC ID used by EKS"
+  value       = var.vpc_id
 }
-
-# output "eks_managed_node_groups" {
-#   description = "Map of attribute maps for all EKS managed node groups created"
-#   value       = module.eks.eks_managed_node_groups
-# }

@@ -1,0 +1,117 @@
+# -----------------------------
+# Terraform
+# -----------------------------
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars
+terraform.tfvars.json
+*.tfplan
+*.zip
+*.bak
+
+# локальные kubeconfig-и (для безопасности)
+kubeconfig
+kubeconfig-*
+
+# -----------------------------
+# Ansible
+# -----------------------------
+*.retry
+*.log
+*.tmp
+*.bak
+.ansible/
+*.vault_pass
+*.vault_password_file
+inventory.ini
+secrets.yml
+host_vars/*
+group_vars/*
+!group_vars/all.yml
+!host_vars/all.yml
+
+# -----------------------------
+# Helm / Kubernetes
+# -----------------------------
+charts/
+chart.tgz
+*.tgz
+values*.yaml
+helmfile*.yaml
+.kube/
+.k8s/
+
+# -----------------------------
+# SSH / Credentials
+# -----------------------------
+*.pem
+*.key
+*.crt
+*.csr
+*.pub
+secrets/
+private_keys/
+id_rsa*
+id_ecdsa*
+id_ed25519*
+*.enc
+*.age
+
+# -----------------------------
+# Python / Tools / Pipenv
+# -----------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+venv/
+.env
+.envrc
+
+# -----------------------------
+# VSCode / IDE / OS files
+# -----------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# -----------------------------
+# Temporary / generated files
+# -----------------------------
+*.out
+*.log
+*.tmp
+*.bak
+*.orig
+*.old
+*.tar.gz
+*.gz
+
+# -----------------------------
+# CI/CD artifacts (если будут)
+# -----------------------------
+.gitlab-ci-local/
+.gitlab-ci.yml~
+ci-debug.log
+output.log
+
+# -----------------------------
+# Optional: EKS outputs / kubeconfig dump
+# -----------------------------
+eks_config.yaml
+eks_auth.yaml
+eks_output.json
