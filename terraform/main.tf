@@ -14,22 +14,6 @@ locals {
       }
     }
   }
-
-  argo_access_entries = var.reg-cluster-in-argocd ? {
-    argocd = {
-      kubernetes_groups = ["argocd"]
-      principal_arn     = var.argocd_deployer_role_arn
-
-      policy_associations = {
-        argocd = {
-          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
-          access_scope = {
-            type = "cluster"
-          }
-        }
-      }
-    }
-  } : {}
 }
 
 module "eks" {
@@ -87,7 +71,6 @@ module "eks" {
 
   access_entries = merge(
     local.admin_access_entries,
-    local.argo_access_entries,
     var.access_entries
   )
 
@@ -193,22 +176,18 @@ module "external_dns_irsa" {
   tags = var.tags
 }
 
-module "aws_cloudwatch_observability_pod_identity" {
-  source  = "terraform-aws-modules/eks-pod-identity/aws"
-  version = "1.10.0"
+module "cluster_autoscaler_irsa" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.0"
 
-  name = "aws-cloudwatch-observability"
+  role_name_prefix                 = "CLUSTER-AUTOSCALER-${var.name}"
+  attach_cluster_autoscaler_policy = true
+  cluster_autoscaler_cluster_names = [module.eks.cluster_name]
 
-  attach_aws_cloudwatch_observability_policy = true
-
-  association_defaults = {
-    namespace       = "kube-system"
-    service_account = "cloudwatch-agent"
-  }
-
-  associations = {
+  oidc_providers = {
     main = {
-      cluster_name = module.eks.cluster_name
+      provider_arn               = module.eks.oidc_provider_arn
+      namespace_service_accounts = ["kube-system:cluster-autoscaler"]
     }
   }
 
