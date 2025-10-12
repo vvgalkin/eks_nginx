@@ -58,10 +58,6 @@ variable "admin_role_arns" {
   default = []
 }
 
-############
-##### KMS
-############
-
 variable "kms_key_owners" {
   type    = list(string)
   default = []
@@ -71,10 +67,6 @@ variable "kms_key_administrators" {
   type    = list(string)
   default = []
 }
-
-#############
-##### ROUTE53
-#############
 
 variable "external_dns_hosted_zone_arns" {
   type    = list(string)
