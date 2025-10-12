@@ -14,6 +14,22 @@ locals {
       }
     }
   }
+
+  argo_access_entries = var.reg-cluster-in-argocd ? {
+    argocd = {
+      kubernetes_groups = ["argocd"]
+      principal_arn     = var.argocd_deployer_role_arn
+
+      policy_associations = {
+        argocd = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = {
+            type = "cluster"
+          }
+        }
+      }
+    }
+  } : {}
 }
 
 module "eks" {
@@ -71,6 +87,7 @@ module "eks" {
 
   access_entries = merge(
     local.admin_access_entries,
+    local.argo_access_entries,
     var.access_entries
   )
 
@@ -88,7 +105,6 @@ module "key_pair" {
 }
 
 
-# VPC CNI IRSA
 module "vpc_cni_irsa" {
   source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
   version = "~> 5.0"
@@ -107,7 +123,6 @@ module "vpc_cni_irsa" {
   tags = var.tags
 }
 
-# EBS CSI Driver IRSA
 module "ebs_irsa" {
   source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
   version = "~> 5.0"
@@ -142,7 +157,6 @@ module "efs_irsa" {
   tags = var.tags
 }
 
-# AWS Load Balancer Controller IRSA
 module "aws_loadbalancer_irsa" {
   source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
   version = "~> 5.0"
@@ -160,29 +174,7 @@ module "aws_loadbalancer_irsa" {
   tags = var.tags
 }
 
-# Cluster Autoscaler IRSA
-module "cluster_autoscaler_irsa" {
-  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
-  version = "~> 5.0"
-
-  role_name_prefix                 = "CLUSTER-AUTOSCALER-${var.name}"
-  attach_cluster_autoscaler_policy = true
-  cluster_autoscaler_cluster_names = [module.eks.cluster_name]
-
-  oidc_providers = {
-    main = {
-      provider_arn               = module.eks.oidc_provider_arn
-      namespace_service_accounts = ["kube-system:cluster-autoscaler"]
-    }
-  }
-
-  tags = var.tags
-}
-
-# External DNS IRSA (optional)
 module "external_dns_irsa" {
-  count = length(var.external_dns_hosted_zone_arns) > 0 ? 1 : 0
-
   source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
   version = "~> 5.0"
 
@@ -194,7 +186,7 @@ module "external_dns_irsa" {
   oidc_providers = {
     main = {
       provider_arn               = module.eks.oidc_provider_arn
-      namespace_service_accounts = ["external-dns:external-dns"]
+      namespace_service_accounts = ["external-dns-int:external-dns-int"]
     }
   }
 
