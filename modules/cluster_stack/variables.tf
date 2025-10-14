@@ -109,6 +109,12 @@ variable "enable_metrics_server" {
   default     = true
 }
 
+variable "enable_nginx" {
+  description = "Deploy nginx demo application"
+  type        = bool
+  default     = true
+}
+
 #############################
 # Helm charts versions & values overrides
 #############################
@@ -170,4 +176,3 @@ variable "karpenter_helm_extra_values" {
   type        = list(any)
   default     = []
 }
-

@@ -1,0 +1,4 @@
+apiVersion: v2
+name: nginx-demo
+description: Nginx demo application with HPA and ALB Ingress
+version: 0.1.0

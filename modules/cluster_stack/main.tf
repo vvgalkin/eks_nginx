@@ -13,11 +13,6 @@ terraform {
       source  = "hashicorp/helm"
       version = "~> 2.13"
     }
-
-    kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = "~> 2.33"
-    }
   }
 }
 
@@ -98,14 +93,13 @@ module "eks" {
     }
   }
 
-
-
   cluster_addons = {
     coredns                = {}
     kube-proxy             = {}
     vpc-cni                = {}
     eks-pod-identity-agent = {}
   }
+
   # включаем современную аутентификацию EKS через переменную модуля
   authentication_mode = "API_AND_CONFIG_MAP"
 
@@ -132,26 +126,16 @@ module "eks" {
 }
 
 ########################################
-# Data for k8s/helm providers
+# Data for helm provider
 ########################################
 data "aws_eks_cluster" "this" {
-  name = module.eks.cluster_name
-
-  # Ждём создания кластера
+  name       = module.eks.cluster_name
   depends_on = [module.eks]
 }
 
 data "aws_eks_cluster_auth" "this" {
-  name = module.eks.cluster_name
-
-  # Ждём создания кластера
+  name       = module.eks.cluster_name
   depends_on = [module.eks]
-}
-
-provider "kubernetes" {
-  host                   = data.aws_eks_cluster.this.endpoint
-  cluster_ca_certificate = base64decode(data.aws_eks_cluster.this.certificate_authority[0].data)
-  token                  = data.aws_eks_cluster_auth.this.token
 }
 
 provider "helm" {
@@ -221,7 +205,6 @@ resource "helm_release" "metrics_server" {
   chart      = "metrics-server"
   version    = var.metrics_server_chart_version
 
-  # Для теста упрощаем TLS; в проде убрать через overrides
   values = concat(
     [
       yamlencode({
@@ -232,15 +215,14 @@ resource "helm_release" "metrics_server" {
   )
 }
 
-#####################################
-# Karpenter (20.24.0)
-#####################################
+########################################
+# Karpenter
+########################################
 module "karpenter" {
   count   = var.enable_karpenter ? 1 : 0
   source  = "terraform-aws-modules/eks/aws//modules/karpenter"
   version = "20.24.0"
 
-  # базовое
   cluster_name = module.eks.cluster_name
   namespace    = "karpenter"
 
@@ -250,20 +232,13 @@ module "karpenter" {
   iam_role_name            = "karpenter-controller-${var.name}"
   iam_role_use_name_prefix = false
 
-  # IAM для нод, которые создаст Karpenter
+  # IAM для нод
   create_node_iam_role              = true
   node_iam_role_use_name_prefix     = false
   node_iam_role_name                = "karpenter-node-${var.name}"
   node_iam_role_additional_policies = var.karpenter_node_additional_policies
 
-  # Рекомендуется для свежих кластеров
   enable_v1_permissions = true
-
-  # Если будете переиспользовать роль MNG — ставьте false, чтобы не словить 409
-  # create_access_entry          = true
-
-  # Очередь для interruption events модуль создаёт сам; можно явно включить:
-  # create_sqs_queue            = true
 
   tags = var.tags
 }
@@ -288,7 +263,6 @@ resource "helm_release" "karpenter" {
   chart      = "karpenter"
   version    = var.karpenter_chart_version
 
-  # Важно: ждём и CRD, и IAM/SQS от module.karpenter
   depends_on = [
     helm_release.karpenter_crd,
     module.karpenter
@@ -312,4 +286,41 @@ resource "helm_release" "karpenter" {
     ],
     [for v in var.karpenter_helm_extra_values : yamlencode(v)]
   )
+}
+
+########################################
+# Karpenter Resources (NodePool & EC2NodeClass)
+########################################
+resource "helm_release" "karpenter_resources" {
+  count     = var.enable_karpenter ? 1 : 0
+  name      = "karpenter-resources"
+  namespace = "karpenter"
+  chart     = "${path.module}/charts/karpenter-resources"
+
+  depends_on = [
+    helm_release.karpenter
+  ]
+
+  values = [
+    yamlencode({
+      clusterName = module.eks.cluster_name
+      roleName    = module.karpenter[0].node_iam_role_name
+    })
+  ]
+}
+
+########################################
+# Nginx Demo Application
+########################################
+resource "helm_release" "nginx" {
+  count     = var.enable_nginx ? 1 : 0
+  name      = "nginx-demo"
+  namespace = "default"
+  chart     = "${path.module}/charts/nginx"
+
+  depends_on = [
+    module.eks,
+    helm_release.alb,
+    helm_release.metrics_server
+  ]
 }

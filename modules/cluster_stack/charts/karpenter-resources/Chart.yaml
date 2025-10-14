@@ -1,0 +1,4 @@
+apiVersion: v2
+name: karpenter-resources
+description: Karpenter NodePool and EC2NodeClass
+version: 0.1.0
