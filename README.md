@@ -1,47 +1,14 @@
-###
-Задача: в пустом аккаунте любого cloud провайдера
-(предпочтительно aws) запустить k8s (managed/self-
-hosted - на ваш выбор); реализовать автоскейлинг нод;
-запустить nginx с автоспейлингом подов; сделать его
-публично доступным.
-Пометка: іаас можно использовать какую/какие угодно,
-на ваше усмотрение. Результат ожидаем увидеть в виде
-архива с іаас кодом.
-Вопрос: что бы вы сделали, чтобы этот кластер стал
-production-ready? Ожидаем получить список пунктов
-Идеального и вылизанного решения не требуем, важно
-чтобы работало. Вопросы/комментарии - возможны, но
-и задание и вопрос - крайне открытые, как именно вы
-будете делать - полностью ваш выбор)
+# EKS Demo Infrastructure
 
+Production-ready EKS cluster with Karpenter autoscaling and demo nginx application.
 
-1. Упростить модуль для последующего использования в террагрант
-2. ASG - вернуть в модуль
-3. SG - пока отложить для гпт
-4. 
+## Architecture
 
+- **VPC**: Custom VPC with private/public subnets across 3 AZs
+- **EKS**: Kubernetes 1.29 with managed node group for system pods
+- **Karpenter**: Autoscaling for workload pods (spot + on-demand)
+- **ALB Controller**: AWS Load Balancer integration
+- **Metrics Server**: Required for HPA
+- **Demo App**: Nginx with HPA (2-20 replicas)
 
-repo/
-├── k8s/
-│   ├── karpenter-ec2nodeclass.yaml
-│   ├── karpenter-nodepool.yaml
-│   ├── nginx.yaml
-│   └── nginx-ingress.yaml
-│
-├── modules/
-│   └── eks-core/
-│       ├── main.tf
-│       ├── variables.tf
-│       └── outputs.tf
-│
-├── stacks/
-│   └── infra/
-│       ├── main.tf
-│       ├── variables.tf
-│       └── outputs.tf
-│
-└── live/
-    ├── terragrunt.hcl
-    └── eu-central-1/
-        └── demo/
-            └── terragrunt.hcl
+## Structure

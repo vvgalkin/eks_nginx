@@ -28,7 +28,7 @@ provider "aws" {
 }
 
 ########################################
-# Networking (always create VPC)
+# Networking
 ########################################
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
@@ -41,7 +41,7 @@ module "vpc" {
   private_subnets = var.private_subnet_cidrs
   public_subnets  = var.public_subnet_cidrs
 
-  # Required tags for ALB & Karpenter discoverability
+  # Required tags for ALB & Karpenter
   private_subnet_tags = {
     "kubernetes.io/cluster/${var.name}" = "shared"
     "kubernetes.io/role/internal-elb"   = "1"
@@ -53,7 +53,8 @@ module "vpc" {
   }
 
   enable_nat_gateway = true
-  single_nat_gateway = true
+  # ✅ ДОБАВЛЕНО: управление через переменную
+  single_nat_gateway = var.single_nat_gateway
 
   tags = var.tags
 }
@@ -65,7 +66,7 @@ locals {
 }
 
 ########################################
-# EKS (anchor MNG; core addons)
+# EKS Cluster
 ########################################
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
@@ -80,7 +81,7 @@ module "eks" {
   cluster_endpoint_public_access  = true
   cluster_endpoint_private_access = true
 
-  # Minimal anchor nodegroup for system pods
+  # Anchor nodegroup для системных подов
   eks_managed_node_groups = {
     core = {
       min_size     = var.anchor_min_size
@@ -100,15 +101,15 @@ module "eks" {
     eks-pod-identity-agent = {}
   }
 
-  # включаем современную аутентификацию EKS через переменную модуля
-  authentication_mode = "API_AND_CONFIG_MAP"
+  # ✅ ИСПРАВЛЕНО: Admin доступ через EKS access entries
+  authentication_mode                      = "API_AND_CONFIG_MAP"
+  enable_cluster_creator_admin_permissions = true
 
-  # выдаём кластерный admin-доступ всем ролям из var.admin_role_arns
+  # ✅ ДОБАВЛЕНО: Выдаём admin права указанным principals
   access_entries = {
-    for arn in var.admin_role_arns :
-    "admin-${reverse(split("/", arn))[0]}" => {
-      principal_arn     = arn
-      kubernetes_groups = [] # не обязательно при использовании managed policies
+    for idx, arn in var.admin_principals :
+    "admin-${idx}" => {
+      principal_arn = arn
 
       policy_associations = {
         admin = {
@@ -121,12 +122,11 @@ module "eks" {
     }
   }
 
-
   tags = var.tags
 }
 
 ########################################
-# Data for helm provider
+# Helm Provider Configuration
 ########################################
 data "aws_eks_cluster" "this" {
   name       = module.eks.cluster_name
@@ -147,7 +147,7 @@ provider "helm" {
 }
 
 ########################################
-# AWS Load Balancer Controller (optional)
+# AWS Load Balancer Controller
 ########################################
 module "alb_irsa" {
   count   = var.enable_alb_controller ? 1 : 0
@@ -195,7 +195,7 @@ resource "helm_release" "alb" {
 }
 
 ########################################
-# metrics-server (optional)
+# Metrics Server
 ########################################
 resource "helm_release" "metrics_server" {
   count      = var.enable_metrics_server ? 1 : 0
@@ -205,12 +205,13 @@ resource "helm_release" "metrics_server" {
   chart      = "metrics-server"
   version    = var.metrics_server_chart_version
 
+  # ✅ ИСПРАВЛЕНО: условное добавление insecure TLS только для demo
   values = concat(
-    [
+    var.name == "demo-eks-eu-central-1" ? [
       yamlencode({
         args = ["--kubelet-insecure-tls"]
       })
-    ],
+    ] : [],
     [for v in var.metrics_server_extra_values : yamlencode(v)]
   )
 }
@@ -226,7 +227,7 @@ module "karpenter" {
   cluster_name = module.eks.cluster_name
   namespace    = "karpenter"
 
-  # IAM для контроллера (IRSA)
+  # IAM для контроллера
   enable_irsa              = true
   irsa_oidc_provider_arn   = module.eks.oidc_provider_arn
   iam_role_name            = "karpenter-controller-${var.name}"
@@ -243,7 +244,6 @@ module "karpenter" {
   tags = var.tags
 }
 
-# CRDs
 resource "helm_release" "karpenter_crd" {
   count            = var.enable_karpenter ? 1 : 0
   name             = "karpenter-crd"
@@ -254,7 +254,6 @@ resource "helm_release" "karpenter_crd" {
   version          = var.karpenter_crd_version
 }
 
-# Контроллер
 resource "helm_release" "karpenter" {
   count      = var.enable_karpenter ? 1 : 0
   name       = "karpenter"
@@ -289,7 +288,7 @@ resource "helm_release" "karpenter" {
 }
 
 ########################################
-# Karpenter Resources (NodePool & EC2NodeClass)
+# Karpenter Resources
 ########################################
 resource "helm_release" "karpenter_resources" {
   count     = var.enable_karpenter ? 1 : 0
