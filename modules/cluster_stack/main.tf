@@ -1,24 +1,5 @@
-terraform {
-  required_version = ">= 1.6.0"
+terraform {}
 
-  backend "local" {}
-
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.55"
-    }
-
-    helm = {
-      source  = "hashicorp/helm"
-      version = "~> 2.13"
-    }
-  }
-}
-
-########################################
-# Providers
-########################################
 provider "aws" {
   region = var.region
 
@@ -27,9 +8,6 @@ provider "aws" {
   }
 }
 
-########################################
-# Networking
-########################################
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "5.8.1"
@@ -41,7 +19,6 @@ module "vpc" {
   private_subnets = var.private_subnet_cidrs
   public_subnets  = var.public_subnet_cidrs
 
-  # Required tags for ALB & Karpenter
   private_subnet_tags = {
     "kubernetes.io/cluster/${var.name}" = "shared"
     "kubernetes.io/role/internal-elb"   = "1"
@@ -53,7 +30,6 @@ module "vpc" {
   }
 
   enable_nat_gateway = true
-  # ✅ ДОБАВЛЕНО: управление через переменную
   single_nat_gateway = var.single_nat_gateway
 
   tags = var.tags
@@ -65,9 +41,6 @@ locals {
   public_subnets_out  = module.vpc.public_subnets
 }
 
-########################################
-# EKS Cluster
-########################################
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "20.24.0"
@@ -81,7 +54,6 @@ module "eks" {
   cluster_endpoint_public_access  = true
   cluster_endpoint_private_access = true
 
-  # Anchor nodegroup для системных подов
   eks_managed_node_groups = {
     core = {
       min_size     = var.anchor_min_size
@@ -101,11 +73,9 @@ module "eks" {
     eks-pod-identity-agent = {}
   }
 
-  # ✅ ИСПРАВЛЕНО: Admin доступ через EKS access entries
   authentication_mode                      = "API_AND_CONFIG_MAP"
   enable_cluster_creator_admin_permissions = true
 
-  # ✅ ДОБАВЛЕНО: Выдаём admin права указанным principals
   access_entries = {
     for idx, arn in var.admin_principals :
     "admin-${idx}" => {
@@ -125,9 +95,6 @@ module "eks" {
   tags = var.tags
 }
 
-########################################
-# Helm Provider Configuration
-########################################
 data "aws_eks_cluster" "this" {
   name       = module.eks.cluster_name
   depends_on = [module.eks]
@@ -146,9 +113,6 @@ provider "helm" {
   }
 }
 
-########################################
-# AWS Load Balancer Controller
-########################################
 module "alb_irsa" {
   count   = var.enable_alb_controller ? 1 : 0
   source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
@@ -194,9 +158,6 @@ resource "helm_release" "alb" {
   depends_on = [module.alb_irsa]
 }
 
-########################################
-# Metrics Server
-########################################
 resource "helm_release" "metrics_server" {
   count      = var.enable_metrics_server ? 1 : 0
   name       = "metrics-server"
@@ -205,7 +166,6 @@ resource "helm_release" "metrics_server" {
   chart      = "metrics-server"
   version    = var.metrics_server_chart_version
 
-  # ✅ ИСПРАВЛЕНО: условное добавление insecure TLS только для demo
   values = concat(
     var.name == "demo-eks-eu-central-1" ? [
       yamlencode({
@@ -216,9 +176,6 @@ resource "helm_release" "metrics_server" {
   )
 }
 
-########################################
-# Karpenter
-########################################
 module "karpenter" {
   count   = var.enable_karpenter ? 1 : 0
   source  = "terraform-aws-modules/eks/aws//modules/karpenter"
@@ -227,13 +184,11 @@ module "karpenter" {
   cluster_name = module.eks.cluster_name
   namespace    = "karpenter"
 
-  # IAM для контроллера
   enable_irsa              = true
   irsa_oidc_provider_arn   = module.eks.oidc_provider_arn
   iam_role_name            = "karpenter-controller-${var.name}"
   iam_role_use_name_prefix = false
 
-  # IAM для нод
   create_node_iam_role              = true
   node_iam_role_use_name_prefix     = false
   node_iam_role_name                = "karpenter-node-${var.name}"
@@ -287,9 +242,6 @@ resource "helm_release" "karpenter" {
   )
 }
 
-########################################
-# Karpenter Resources
-########################################
 resource "helm_release" "karpenter_resources" {
   count     = var.enable_karpenter ? 1 : 0
   name      = "karpenter-resources"
@@ -308,9 +260,6 @@ resource "helm_release" "karpenter_resources" {
   ]
 }
 
-########################################
-# Nginx Demo Application
-########################################
 resource "helm_release" "nginx" {
   count     = var.enable_nginx ? 1 : 0
   name      = "nginx-demo"
