@@ -1,16 +1,19 @@
-apiVersion: karpenter.k8s.aws/v1beta1
+apiVersion: karpenter.k8s.aws/v1
 kind: EC2NodeClass
 metadata:
-  name: default-ec2
+  name: {{ .Values.ec2NodeClass.name | default "default-ec2" }}
+  namespace: {{ .Release.Namespace }}
 spec:
-  amiFamily: AL2
+  amiFamily: {{ .Values.ec2NodeClass.amiFamily | default "AL2023" }}
+  amiSelectorTerms:
+    - alias: {{ .Values.ec2NodeClass.amiAlias | default "al2023@latest" }}
   role: {{ .Values.roleName }}
   subnetSelectorTerms:
     - tags:
-        "kubernetes.io/cluster/{{ .Values.clusterName }}": "shared"
-        "kubernetes.io/role/internal-elb": "1"
+        kubernetes.io/cluster/{{ .Values.clusterName }}: shared
+        kubernetes.io/role/internal-elb: "1"
   securityGroupSelectorTerms:
     - tags:
-        "kubernetes.io/cluster/{{ .Values.clusterName }}": "owned"
+        karpenter.sh/discovery: {{ .Values.clusterName }}
   tags:
-    "karpenter.sh/discovery": "{{ .Values.clusterName }}"
+    karpenter.sh/discovery: {{ .Values.clusterName }}

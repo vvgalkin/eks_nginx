@@ -1,4 +1,4 @@
-apiVersion: karpenter.sh/v1beta1
+apiVersion: karpenter.sh/v1
 kind: NodePool
 metadata:
   name: default
@@ -9,6 +9,8 @@ spec:
         role: workload
     spec:
       nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
         name: default-ec2
       requirements:
         - key: karpenter.k8s.aws/instance-family
@@ -18,8 +20,8 @@ spec:
           operator: In
           values: ["spot", "on-demand"]
   disruption:
-    consolidationPolicy: WhenUnderutilized
-    expireAfter: 720h
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 1m
   limits:
     cpu: "200"
   weight: 10
